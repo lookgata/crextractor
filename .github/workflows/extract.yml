@@ -3,7 +3,7 @@ name: Extract
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 6 1 * *' # Runs monthly on the 1st day at 06:00 UTC
+    - cron: '0 6 1,11,21 * *' # รันทุกวันที่ 1, 11 และ 21 ของเดือน เวลา 06:00 UTC (13:00 น. เวลาไทย)
 
 jobs:
   extract:
