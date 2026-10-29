@@ -4,36 +4,23 @@ import { readdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { download } from 'molnia';
 
-const downloadMobileApk = async () => {
-  const url = 'https://api.qqaoop.com/v11/apps/com.crunchyroll.crunchyroid/download?userId=1';
-  const filepath = join(process.cwd(), 'crunchyroll.apk');
-  await download(url, {
-    output: filepath,
-    onError: (error) => console.error(error),
-  });
-  return filepath;
-};
-
-const downloadTvApk = async () => {
-  const searchParams = new URLSearchParams();
-  searchParams.append('query', 'crunchyroll');
-  searchParams.append('cdn', 'web');
-  searchParams.append('q', 'bXlDUFU9YXJtNjQtdjhhLGFybWVhYmktdjdhLGFybWVhYmkmbGVhbmJhY2s9MA');
-  searchParams.append('aab', '1');
-  const searchUrl = `https://ws2-cache.aptoide.com/api/7/apps/search?${searchParams.toString()}`;
-  const searchResults = await fetch(searchUrl).then((r) => r.json());
-  const id = searchResults.datalist?.list?.[0]?.id;
-  if (!id) {
-    console.error('Unable to find ID for TV APK');
+const downloadApk = async (target = 'mobile') => {
+  const q = Buffer.from('myCPU=arm64-v8a,armeabi-v7a,armeabi&leanback=0')
+    .toString('base64')
+    .replace(/=+$/, '');
+  const listUrl = `https://ws75-cache.aptoide.com/api/7/listAppVersions?package_name=com.crunchyroll.crunchyroid&q=${q}&aab=1&limit=15`;
+  const listRes = await fetch(listUrl).then((r) => r.json());
+  const versions = listRes.list || [];
+  const match = versions.find((v) =>
+    target === 'mobile' ? v.file.vercode < 10000 : v.file.vercode >= 20000
+  );
+  if (!match?.id) {
+    console.error(`Unable to find ID for ${target} APK`);
     return;
   }
-  const source = 'https://webservices.aptoide.com/webservices/3/getApkInfo';
-  const body = new FormData();
-  body.append('identif', `id:${id}`);
-  body.append('mode', 'json');
-  const response = await fetch(source, { method: 'POST', body });
-  const json = await response.json();
-  const url = json.apk.path;
+  const metaUrl = `https://ws75-cache.aptoide.com/api/7/app/getMeta?app_id=${match.id}`;
+  const metaJson = await fetch(metaUrl).then((r) => r.json());
+  const url = metaJson.data.file.path;
   const filepath = join(process.cwd(), 'crunchyroll.apk');
   await download(url, {
     output: filepath,
@@ -116,7 +103,7 @@ const parseVersion = async (decompiledDir) => {
 
 const extract = async ({ target = 'mobile', output, cleanup = false } = {}) => {
   console.log('Downloading APK...');
-  const apkPath = target === 'tv' ? await downloadTvApk() : await downloadMobileApk();
+  const apkPath = await downloadApk(target);
 
   if (!existsSync(apkPath)) {
     console.error('Unable to find APK (possibly a download error)');
@@ -155,7 +142,7 @@ const extract = async ({ target = 'mobile', output, cleanup = false } = {}) => {
 };
 
 const pull = async ({ target = 'mobile' } = {}) => {
-  const url = `https://raw.githubusercontent.com/vitalygashkov/crextractor/refs/heads/main/credentials.${target}.json`;
+  const url = `https://raw.githubusercontent.com/lookgata/crextractor/refs/heads/main/credentials.${target}.json`;
   const credentials = await fetch(url).then((response) => response.json());
   return credentials;
 };
